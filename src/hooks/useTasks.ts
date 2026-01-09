@@ -68,18 +68,6 @@ export function useTasks(): UseTasksState {
   // Initial load: public JSON -> fallback generated dummy
   useEffect(() => {
 let isMounted = true;
-        // Injected bug: append a few malformed rows without validation
-       
-        //Removed the forced duplication
-       /* if (Math.random() < 0.5) {
-          finalData = [
-            ...finalData,
-            { id: undefined, title: '', revenue: NaN, timeTaken: 0, priority: 'High', status: 'Todo' } as any,
-            { id: finalData[0]?.id ?? 'dup-1', title: 'Duplicate ID', revenue: 9999999999, timeTaken: -5, priority: 'Low', status: 'Done' } as any,
-          ];
-        }
-         */ 
-
 
     async function load() {
       try {

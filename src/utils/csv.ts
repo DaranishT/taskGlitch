@@ -30,7 +30,7 @@ function escapeCsv(v: string): string {
       return `"${v.replace(/"/g, '""')}"`;
     }
     return v;
-}
+  }
 
 export function downloadCSV(filename: string, content: string) {
   const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
