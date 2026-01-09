@@ -9,7 +9,8 @@ import TaskDetailsDialog from '@/components/TaskDetailsDialog';
 
 interface Props {
   tasks: DerivedTask[];
-  onAdd: (payload: Omit<Task, 'id'>) => void;
+  // FIX: Relaxed type to match useTasks hook
+  onAdd: (payload: Omit<Task, 'id' | 'createdAt' | 'completedAt'>) => void;
   onUpdate: (id: string, patch: Partial<Task>) => void;
   onDelete: (id: string) => void;
 }
@@ -30,12 +31,14 @@ export default function TaskTable({ tasks, onAdd, onUpdate, onDelete }: Props) {
     setOpenForm(true);
   };
 
-  const handleSubmit = (value: Omit<Task, 'id'> & { id?: string }) => {
+  // FIX: Relaxed type here to match TaskForm's output
+  const handleSubmit = (value: Omit<Task, 'id' | 'createdAt' | 'completedAt'> & { id?: string }) => {
     if (value.id) {
-      const { id, ...rest } = value as Task;
-      onUpdate(id, rest);
+      const { id, ...rest } = value;
+      // We need to cast rest to Partial<Task> because it is missing dates, which is fine for update
+      onUpdate(id, rest as unknown as Partial<Task>);
     } else {
-      onAdd(value as Omit<Task, 'id'>);
+      onAdd(value);
     }
   };
 
@@ -66,18 +69,10 @@ export default function TaskTable({ tasks, onAdd, onUpdate, onDelete }: Props) {
                     <Stack spacing={0.5}>
                       <Typography fontWeight={600}>{t.title}</Typography>
                       {t.notes && (
-                        // Injected bug: render notes as HTML (XSS risk)
-                        // //dangerouslySetInnerHTML={{ __html: t.notes as unknown as string }} removed this injected bug
-                        <Typography
-                            variant="caption"
-                            color="text.secondary"
-                            noWrap
-                            title={t.notes}
-                          >
-                            {t.notes}
-                          </Typography>
-                        )}
-                   
+                        <Typography variant="caption" color="text.secondary" noWrap title={t.notes}>
+                          {t.notes}
+                        </Typography>
+                      )}
                     </Stack>
                   </TableCell>
                   <TableCell align="right">${t.revenue.toLocaleString()}</TableCell>
@@ -88,14 +83,12 @@ export default function TaskTable({ tasks, onAdd, onUpdate, onDelete }: Props) {
                   <TableCell align="right">
                     <Stack direction="row" spacing={1} justifyContent="flex-end">
                       <Tooltip title="Edit">
-                        <IconButton onClick={(e) =>{e.stopPropagation();// bug4, clicking edit or delete opens view details so added a stop event action 
-                         handleEditClick(t)}} size="small">
+                        <IconButton onClick={(e) => { e.stopPropagation(); handleEditClick(t) }} size="small">
                           <EditIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
                       <Tooltip title="Delete">
-                        <IconButton onClick={(e) =>{e.stopPropagation();// stop that action bug4
-                         onDelete(t.id)}} size="small" color="error">
+                        <IconButton onClick={(e) => { e.stopPropagation(); onDelete(t.id) }} size="small" color="error">
                           <DeleteIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
@@ -125,5 +118,3 @@ export default function TaskTable({ tasks, onAdd, onUpdate, onDelete }: Props) {
     </Card>
   );
 }
-
-

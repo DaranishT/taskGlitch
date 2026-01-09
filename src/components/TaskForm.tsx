@@ -1,134 +1,135 @@
-import { useState, FormEvent } from 'react';
+import { useEffect, useState } from 'react';
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Button,
+  Grid,
+  MenuItem,
+  Stack,
+  Alert
+} from '@mui/material';
 import { Task, Priority, Status } from '@/types';
 
 interface TaskFormProps {
-  // RELAXED TYPE: We do not ask for createdAt/completedAt here anymore
-  addTask: (task: Omit<Task, 'id' | 'createdAt' | 'completedAt'>) => void;
+  open: boolean;
+  onClose: () => void;
+  // FIX: We relax the type here so it doesn't ask for createdAt/completedAt
+  onSubmit: (task: Omit<Task, 'id' | 'createdAt' | 'completedAt'> & { id?: string }) => void;
+  existingTitles: string[];
+  initial: Task | null;
 }
 
-export function TaskForm({ addTask }: TaskFormProps) {
+export default function TaskForm({ open, onClose, onSubmit, existingTitles, initial }: TaskFormProps) {
   const [title, setTitle] = useState('');
-  const [revenue, setRevenue] = useState<number | ''>('');
-  const [timeTaken, setTimeTaken] = useState<number | ''>('');
+  const [revenue, setRevenue] = useState<number | string>('');
+  const [timeTaken, setTimeTaken] = useState<number | string>('');
   const [priority, setPriority] = useState<Priority>('Medium');
   const [status, setStatus] = useState<Status>('Todo');
   const [notes, setNotes] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    if (!title || revenue === '' || timeTaken === '') return;
+  useEffect(() => {
+    if (open) {
+      if (initial) {
+        setTitle(initial.title);
+        setRevenue(initial.revenue);
+        setTimeTaken(initial.timeTaken);
+        setPriority(initial.priority);
+        setStatus(initial.status);
+        setNotes(initial.notes || '');
+      } else {
+        setTitle('');
+        setRevenue('');
+        setTimeTaken('');
+        setPriority('Medium');
+        setStatus('Todo');
+        setNotes('');
+      }
+      setError(null);
+    }
+  }, [open, initial]);
 
-    addTask({
-      title,
+  const handleSubmit = () => {
+    if (!title.trim()) {
+      setError('Title is required');
+      return;
+    }
+    
+    if (existingTitles.includes(title.trim()) && (!initial || initial.title !== title)) {
+      setError('A task with this title already exists');
+      return;
+    }
+
+    if (revenue === '' || Number(revenue) < 0) {
+      setError('Valid revenue is required');
+      return;
+    }
+    
+    if (timeTaken === '' || Number(timeTaken) <= 0) {
+      setError('Time taken must be greater than 0');
+      return;
+    }
+
+    const payload = {
+      title: title.trim(),
       revenue: Number(revenue),
       timeTaken: Number(timeTaken),
       priority,
       status,
-      notes
-    });
+      notes: notes.trim() || undefined,
+    };
 
-    // Reset form
-    setTitle('');
-    setRevenue('');
-    setTimeTaken('');
-    setPriority('Medium');
-    setStatus('Todo');
-    setNotes('');
+    if (initial) {
+      // This line will now work because onSubmit expects relaxed types
+      onSubmit({ ...payload, id: initial.id });
+    } else {
+      onSubmit(payload);
+    }
+    
+    onClose();
   };
 
   return (
-    <form onSubmit={handleSubmit} className="p-4 bg-white rounded shadow-md space-y-4 border border-gray-200">
-      <h2 className="text-xl font-bold mb-4">Add New Task</h2>
-      
-      {/* Title */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700">Task Title</label>
-        <input
-          type="text"
-          required
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border"
-          placeholder="e.g. Client Call"
-        />
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        {/* Revenue */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Revenue ($)</label>
-          <input
-            type="number"
-            required
-            min="0"
-            value={revenue}
-            onChange={(e) => setRevenue(e.target.valueAsNumber)}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border"
-          />
-        </div>
-
-        {/* Time Taken */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Time (Hours)</label>
-          <input
-            type="number"
-            required
-            min="0.1"
-            step="0.1"
-            value={timeTaken}
-            onChange={(e) => setTimeTaken(e.target.valueAsNumber)}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border"
-          />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        {/* Priority */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Priority</label>
-          <select
-            value={priority}
-            onChange={(e) => setPriority(e.target.value as Priority)}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border"
-          >
-            <option value="High">High</option>
-            <option value="Medium">Medium</option>
-            <option value="Low">Low</option>
-          </select>
-        </div>
-
-        {/* Status */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Status</label>
-          <select
-            value={status}
-            onChange={(e) => setStatus(e.target.value as Status)}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border"
-          >
-            <option value="Todo">Todo</option>
-            <option value="In Progress">In Progress</option>
-            <option value="Done">Done</option>
-          </select>
-        </div>
-      </div>
-
-      {/* Notes */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700">Notes (Optional)</label>
-        <textarea
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border"
-          rows={3}
-        />
-      </div>
-
-      <button
-        type="submit"
-        className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors"
-      >
-        Add Task
-      </button>
-    </form>
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+      <DialogTitle>{initial ? 'Edit Task' : 'Add New Task'}</DialogTitle>
+      <DialogContent dividers>
+        <Stack spacing={2} pt={1}>
+          {error && <Alert severity="error">{error}</Alert>}
+          <TextField label="Task Title" fullWidth value={title} onChange={(e) => setTitle(e.target.value)} autoFocus />
+          <Grid container spacing={2}>
+            <Grid item xs={6}>
+              <TextField label="Revenue ($)" type="number" fullWidth value={revenue} onChange={(e) => setRevenue(e.target.value)} />
+            </Grid>
+            <Grid item xs={6}>
+              <TextField label="Time Taken (hrs)" type="number" fullWidth value={timeTaken} onChange={(e) => setTimeTaken(e.target.value)} />
+            </Grid>
+          </Grid>
+          <Grid container spacing={2}>
+            <Grid item xs={6}>
+              <TextField select label="Priority" fullWidth value={priority} onChange={(e) => setPriority(e.target.value as Priority)}>
+                <MenuItem value="High">High</MenuItem>
+                <MenuItem value="Medium">Medium</MenuItem>
+                <MenuItem value="Low">Low</MenuItem>
+              </TextField>
+            </Grid>
+            <Grid item xs={6}>
+              <TextField select label="Status" fullWidth value={status} onChange={(e) => setStatus(e.target.value as Status)}>
+                <MenuItem value="Todo">Todo</MenuItem>
+                <MenuItem value="In Progress">In Progress</MenuItem>
+                <MenuItem value="Done">Done</MenuItem>
+              </TextField>
+            </Grid>
+          </Grid>
+          <TextField label="Notes" multiline rows={3} fullWidth value={notes} onChange={(e) => setNotes(e.target.value)} />
+        </Stack>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose} color="inherit">Cancel</Button>
+        <Button onClick={handleSubmit} variant="contained">{initial ? 'Save Changes' : 'Create Task'}</Button>
+      </DialogActions>
+    </Dialog>
   );
 }
