@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { DerivedTask, Metrics, Task } from '@/types';
 import {
   computeAverageROI,
@@ -9,9 +9,10 @@ import {
   withDerived,
   sortTasks as sortDerived,
 } from '@/utils/logic';
-// Local storage removed per request; keep everything in memory
 import { generateSalesTasks } from '@/utils/seed';
 
+// FIX 1: Updated the interface to explicitly omit 'createdAt' and 'completedAt'
+// because the form doesn't provide them (the hook generates them).
 interface UseTasksState {
   tasks: Task[];
   loading: boolean;
@@ -23,7 +24,7 @@ interface UseTasksState {
   updateTask: (id: string, patch: Partial<Task>) => void;
   deleteTask: (id: string) => void;
   undoDelete: () => void;
-  clearUndo: () => void; //Added clear undo for Bug2 function added on line 45 and added clearUndo in return
+  clearUndo: () => void;
 }
 
 const INITIAL_METRICS: Metrics = {
@@ -40,10 +41,10 @@ export function useTasks(): UseTasksState {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastDeleted, setLastDeleted] = useState<Task | null>(null);
-  const fetchedRef = useRef(false);
-  //Added the clearUndo function for Bug2 where if user doesnt click undo or just closes it, last delete is not cleared causing a incorrect on next delete.
+
   const clearUndo = useCallback(() => {
-  setLastDeleted(null);}, []);
+    setLastDeleted(null);
+  }, []);
 
   function normalizeTasks(input: any[]): Task[] {
     const now = Date.now();
@@ -60,31 +61,31 @@ export function useTasks(): UseTasksState {
         notes: t.notes,
         createdAt: created.toISOString(),
         completedAt: completed,
-        
       } as Task;
     });
   }
 
-  // Initial load: public JSON -> fallback generated dummy
+  // FIX 2: Used AbortController pattern to handle React Strict Mode double-fetch safely
   useEffect(() => {
-let isMounted = true;
+    const controller = new AbortController();
 
     async function load() {
       try {
-        const res = await fetch('/tasks.json');
+        const res = await fetch('/tasks.json', { signal: controller.signal });
         if (!res.ok) throw new Error(`Failed to load tasks.json (${res.status})`);
         
         const data = (await res.json()) as any[];
         const normalized: Task[] = normalizeTasks(data);
         
-        // Use normalized data if valid, otherwise seed data
-        let finalData = normalized.length > 0 ? normalized : generateSalesTasks(50);
+        const finalData = normalized.length > 0 ? normalized : generateSalesTasks(50);
         
-        if (isMounted) setTasks(finalData);
+        setTasks(finalData);
       } catch (e: any) {
-        if (isMounted) setError(e?.message ?? 'Failed to load tasks');
+        // Ignore errors if the component unmounted (aborted)
+        if (e.name === 'AbortError') return;
+        setError(e?.message ?? 'Failed to load tasks');
       } finally {
-        if (isMounted) {
+        if (!controller.signal.aborted) {
           setLoading(false);
         }
       }
@@ -93,33 +94,10 @@ let isMounted = true;
     load();
 
     return () => {
-      isMounted = false;
+      controller.abort();
     };
   }, []);
 
-
-  // Injected bug: opportunistic second fetch that can duplicate tasks on fast remounts
-
-//Identified error over here and have commented it out from line 101-118
-
- // useEffect(() => {
-    // Delay to race with the primary loader and append duplicate tasks unpredictably
-/*    const timer = setTimeout(() => {
-      (async () => {
-        try {
-          const res = await fetch('/tasks.json');
-          if (!res.ok) return;
-          const data = (await res.json()) as any[];
-          const normalized = normalizeTasks(data);
-          setTasks(prev => [...prev, ...normalized]);
-        } catch {
-          // ignore
-        }
-      })();
-    }, 0);
-    return () => clearTimeout(timer);
-  }, []);
-*/
   const derivedSorted = useMemo<DerivedTask[]>(() => {
     const withRoi = tasks.map(withDerived);
     return sortDerived(withRoi);
@@ -136,16 +114,21 @@ let isMounted = true;
     return { totalRevenue, totalTimeTaken, timeEfficiencyPct, revenuePerHour, averageROI, performanceGrade };
   }, [tasks]);
 
-const addTask = useCallback((task: Omit<Task, 'id' | 'createdAt' | 'completedAt'> & { id?: string }) => {
-  setTasks(prev => {
-    const id = task.id ?? crypto.randomUUID();
-    const timeTaken = task.timeTaken <= 0 ? 1 : task.timeTaken;
-      const createdAt = new Date().toISOString(); // The hook generates this, so the caller doesn't have to
+  // FIX 3: Updated implementation signature to match the interface
+  const addTask = useCallback((task: Omit<Task, 'id' | 'createdAt' | 'completedAt'> & { id?: string }) => {
+    setTasks(prev => {
+      const id = task.id ?? crypto.randomUUID();
+      const timeTaken = task.timeTaken <= 0 ? 1 : task.timeTaken; 
+      
+      // We generate the missing date fields here
+      const createdAt = new Date().toISOString();
       const status = task.status;
       const completedAt = status === 'Done' ? createdAt : undefined;
-return [...prev, { ...task, id, timeTaken, createdAt, completedAt } as Task];
-  });
-}, []);
+      
+      return [...prev, { ...task, id, timeTaken, createdAt, completedAt } as Task];
+    });
+  }, []);
+
   const updateTask = useCallback((id: string, patch: Partial<Task>) => {
     setTasks(prev => {
       const next = prev.map(t => {
@@ -156,7 +139,6 @@ return [...prev, { ...task, id, timeTaken, createdAt, completedAt } as Task];
         }
         return merged;
       });
-      // Ensure timeTaken remains > 0
       return next.map(t => (t.id === id && (patch.timeTaken ?? t.timeTaken) <= 0 ? { ...t, timeTaken: 1 } : t));
     });
   }, []);
@@ -175,7 +157,5 @@ return [...prev, { ...task, id, timeTaken, createdAt, completedAt } as Task];
     setLastDeleted(null);
   }, [lastDeleted]);
 
-  return { tasks, loading, error, derivedSorted, metrics, lastDeleted, addTask, updateTask, deleteTask, undoDelete, clearUndo };//added clearUndo
+  return { tasks, loading, error, derivedSorted, metrics, lastDeleted, addTask, updateTask, deleteTask, undoDelete, clearUndo };
 }
-
-
