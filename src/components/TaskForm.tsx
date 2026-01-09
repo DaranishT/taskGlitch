@@ -1,150 +1,134 @@
-import { useEffect, useMemo, useState } from 'react';
-import {
-  Button,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  FormControl,
-  InputLabel,
-  MenuItem,
-  Select,
-  Stack,
-  TextField,
-} from '@mui/material';
-import { Priority, Status, Task } from '@/types';
+import { useState, FormEvent } from 'react';
+import { Task, Priority, Status } from '@/types';
 
-interface Props {
-  open: boolean;
-  onClose: () => void;
-  onSubmit: (value: Omit<Task, 'id'> & { id?: string }) => void;
-  existingTitles: string[];
-  initial?: Task | null;
+interface TaskFormProps {
+  // RELAXED TYPE: We do not ask for createdAt/completedAt here anymore
+  addTask: (task: Omit<Task, 'id' | 'createdAt' | 'completedAt'>) => void;
 }
 
-const priorities: Priority[] = ['High', 'Medium', 'Low'];
-const statuses: Status[] = ['Todo', 'In Progress', 'Done'];
-
-export default function TaskForm({ open, onClose, onSubmit, existingTitles, initial }: Props) {
+export function TaskForm({ addTask }: TaskFormProps) {
   const [title, setTitle] = useState('');
   const [revenue, setRevenue] = useState<number | ''>('');
   const [timeTaken, setTimeTaken] = useState<number | ''>('');
-  const [priority, setPriority] = useState<Priority | ''>('');
-  const [status, setStatus] = useState<Status | ''>('');
+  const [priority, setPriority] = useState<Priority>('Medium');
+  const [status, setStatus] = useState<Status>('Todo');
   const [notes, setNotes] = useState('');
 
-  useEffect(() => {
-    if (!open) return;
-    if (initial) {
-      setTitle(initial.title);
-      setRevenue(initial.revenue);
-      setTimeTaken(initial.timeTaken);
-      setPriority(initial.priority);
-      setStatus(initial.status);
-      setNotes(initial.notes ?? '');
-    } else {
-      setTitle('');
-      setRevenue('');
-      setTimeTaken('');
-      setPriority('');
-      setStatus('');
-      setNotes('');
-    }
-  }, [open, initial]);
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    if (!title || revenue === '' || timeTaken === '') return;
 
-  const duplicateTitle = useMemo(() => {
-    const current = title.trim().toLowerCase();
-    if (!current) return false;
-    const others = initial ? existingTitles.filter(t => t.toLowerCase() !== initial.title.toLowerCase()) : existingTitles;
-    return others.map(t => t.toLowerCase()).includes(current);
-  }, [title, existingTitles, initial]);
+    addTask({
+      title,
+      revenue: Number(revenue),
+      timeTaken: Number(timeTaken),
+      priority,
+      status,
+      notes
+    });
 
-  const canSubmit =
-    !!title.trim() &&
-    !duplicateTitle &&
-    typeof revenue === 'number' && revenue >= 0 &&
-    typeof timeTaken === 'number' && timeTaken > 0 &&
-    !!priority &&
-    !!status;
-
-  const handleSubmit = () => {
-    const safeTime = typeof timeTaken === 'number' && timeTaken > 0 ? timeTaken : 1; // auto-correct
-    const payload: Omit<Task, 'id'> & { id?: string } = {
-      title: title.trim(),
-      revenue: typeof revenue === 'number' ? revenue : 0,
-      timeTaken: safeTime,
-      priority: ((priority || 'Medium') as Priority),
-      status: ((status || 'Todo') as Status),
-      notes: notes.trim() || undefined,
-      ...(initial ? { id: initial.id } : {}),
-    };
-    onSubmit(payload);
-    onClose();
+    // Reset form
+    setTitle('');
+    setRevenue('');
+    setTimeTaken('');
+    setPriority('Medium');
+    setStatus('Todo');
+    setNotes('');
   };
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-      <DialogTitle>{initial ? 'Edit Task' : 'Add Task'}</DialogTitle>
-      <DialogContent>
-        <Stack spacing={2} mt={1}>
-          <TextField
-            label="Title"
-            value={title}
-            onChange={e => setTitle(e.target.value)}
-            error={!!title && duplicateTitle}
-            helperText={duplicateTitle ? 'Duplicate title not allowed' : ' '}
+    <form onSubmit={handleSubmit} className="p-4 bg-white rounded shadow-md space-y-4 border border-gray-200">
+      <h2 className="text-xl font-bold mb-4">Add New Task</h2>
+      
+      {/* Title */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700">Task Title</label>
+        <input
+          type="text"
+          required
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border"
+          placeholder="e.g. Client Call"
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        {/* Revenue */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Revenue ($)</label>
+          <input
+            type="number"
             required
-            autoFocus
+            min="0"
+            value={revenue}
+            onChange={(e) => setRevenue(e.target.valueAsNumber)}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border"
           />
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-            <TextField
-              label="Revenue"
-              type="number"
-              value={revenue}
-              onChange={e => setRevenue(e.target.value === '' ? '' : Number(e.target.value))}
-              inputProps={{ min: 0, step: 1 }}
-              required
-              fullWidth
-            />
-            <TextField
-              label="Time Taken (h)"
-              type="number"
-              value={timeTaken}
-              onChange={e => setTimeTaken(e.target.value === '' ? '' : Number(e.target.value))}
-              inputProps={{ min: 1, step: 1 }}
-              required
-              fullWidth
-            />
-          </Stack>
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-            <FormControl fullWidth required>
-              <InputLabel id="priority-label">Priority</InputLabel>
-              <Select labelId="priority-label" label="Priority" value={priority} onChange={e => setPriority(e.target.value as Priority)}>
-                {priorities.map(p => (
-                  <MenuItem key={p} value={p}>{p}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            <FormControl fullWidth required>
-              <InputLabel id="status-label">Status</InputLabel>
-              <Select labelId="status-label" label="Status" value={status} onChange={e => setStatus(e.target.value as Status)}>
-                {statuses.map(s => (
-                  <MenuItem key={s} value={s}>{s}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Stack>
-          <TextField label="Notes" value={notes} onChange={e => setNotes(e.target.value)} multiline minRows={2} />
-        </Stack>
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
-        <Button onClick={handleSubmit} variant="contained" disabled={!canSubmit}>
-          {initial ? 'Save Changes' : 'Add Task'}
-        </Button>
-      </DialogActions>
-    </Dialog>
+        </div>
+
+        {/* Time Taken */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Time (Hours)</label>
+          <input
+            type="number"
+            required
+            min="0.1"
+            step="0.1"
+            value={timeTaken}
+            onChange={(e) => setTimeTaken(e.target.valueAsNumber)}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border"
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        {/* Priority */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Priority</label>
+          <select
+            value={priority}
+            onChange={(e) => setPriority(e.target.value as Priority)}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border"
+          >
+            <option value="High">High</option>
+            <option value="Medium">Medium</option>
+            <option value="Low">Low</option>
+          </select>
+        </div>
+
+        {/* Status */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Status</label>
+          <select
+            value={status}
+            onChange={(e) => setStatus(e.target.value as Status)}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border"
+          >
+            <option value="Todo">Todo</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Done">Done</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Notes */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700">Notes (Optional)</label>
+        <textarea
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border"
+          rows={3}
+        />
+      </div>
+
+      <button
+        type="submit"
+        className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors"
+      >
+        Add Task
+      </button>
+    </form>
   );
 }
-
-
