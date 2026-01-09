@@ -136,16 +136,16 @@ let isMounted = true;
     return { totalRevenue, totalTimeTaken, timeEfficiencyPct, revenuePerHour, averageROI, performanceGrade };
   }, [tasks]);
 
-  const addTask = useCallback((task: Omit<Task, 'id' | 'createdAt' | 'completedAt'> & { id?: string }) => {
-    setTasks(prev => {
-      const id = task.id ?? crypto.randomUUID();
-      const timeTaken = task.timeTaken <= 0 ? 1 : task.timeTaken;
+const addTask = useCallback((task: Omit<Task, 'id' | 'createdAt' | 'completedAt'> & { id?: string }) => {
+  setTasks(prev => {
+    const id = task.id ?? crypto.randomUUID();
+    const timeTaken = task.timeTaken <= 0 ? 1 : task.timeTaken;
       const createdAt = new Date().toISOString(); // The hook generates this, so the caller doesn't have to
       const status = task.status;
       const completedAt = status === 'Done' ? createdAt : undefined;
-    return [...prev, { ...task, id, timeTaken, createdAt, completedAt } as Task];
-      });
-    }, []);
+return [...prev, { ...task, id, timeTaken, createdAt, completedAt } as Task];
+  });
+}, []);
   const updateTask = useCallback((id: string, patch: Partial<Task>) => {
     setTasks(prev => {
       const next = prev.map(t => {
