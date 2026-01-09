@@ -9,11 +9,14 @@ interface TasksContextValue {
   derivedSorted: DerivedTask[];
   metrics: Metrics;
   lastDeleted: Task | null;
-  addTask: (task: Omit<Task, 'id'> & { id?: string }) => void;
+  
+  // FIX: Updated this line to ignore 'createdAt' and 'completedAt'
+  addTask: (task: Omit<Task, 'id' | 'createdAt' | 'completedAt'> & { id?: string }) => void;
+  
   updateTask: (id: string, patch: Partial<Task>) => void;
   deleteTask: (id: string) => void;
   undoDelete: () => void;
-  clearUndo: () => void;//added for app.tsx
+  clearUndo: () => void;
 }
 
 const TasksContext = createContext<TasksContextValue | undefined>(undefined);
@@ -28,5 +31,3 @@ export function useTasksContext(): TasksContextValue {
   if (!ctx) throw new Error('useTasksContext must be used within TasksProvider');
   return ctx as TasksContextValue;
 }
-
-
